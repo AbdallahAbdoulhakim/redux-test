@@ -57,7 +57,18 @@ exports.getUser = exports.getUsers = exports.createUser = void 0;
 const prisma_1 = require("../../generated/prisma");
 const z = __importStar(require("zod/v4"));
 const bcrypt_1 = require("bcrypt");
-const prisma = new prisma_1.PrismaClient();
+const prisma = new prisma_1.PrismaClient().$extends({
+    result: {
+        refreshToken: {
+            is_valid: {
+                needs: { expires_at: true },
+                compute(refreshToken) {
+                    return true;
+                },
+            },
+        },
+    },
+});
 const saltRounds = 10;
 const userSchema = z
     .object({

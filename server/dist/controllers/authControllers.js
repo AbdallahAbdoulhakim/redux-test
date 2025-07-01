@@ -42,14 +42,28 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.login = void 0;
+exports.refresh = exports.login = void 0;
 const prisma_1 = require("../../generated/prisma");
 const z = __importStar(require("zod/v4"));
 const bcrypt_1 = require("bcrypt");
 const jsonwebtoken_1 = require("jsonwebtoken");
 const prisma = new prisma_1.PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "5ee8103f1b511685dafe";
-console.log(JWT_SECRET);
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "5ee8103f1b511685dafe";
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "b64fbca02d6b61d3a3fd";
+const generateAccessToken = (user) => {
+    return (0, jsonwebtoken_1.sign)(user, ACCESS_TOKEN_SECRET, { expiresIn: "15m" });
+};
+const generateRefreshToken = (user) => {
+    let date = new Date();
+    let millisecondToAdd = 60 * 60 * 24 * 7 * 1000;
+    date.setTime(date.getTime() + millisecondToAdd);
+    return {
+        refreshToken: (0, jsonwebtoken_1.sign)(user, REFRESH_TOKEN_SECRET, {
+            expiresIn: 60 * 60 * 24 * 7,
+        }),
+        expire_at: date,
+    };
+};
 const loginSchema = z.object({
     username: z.string({ error: "username is required!" }).min(1),
     password: z.string({ error: "password is required!" }).min(1),
@@ -62,11 +76,57 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         },
     });
     if (user && (yield (0, bcrypt_1.compare)(password, user.password))) {
-        const token = (0, jsonwebtoken_1.sign)({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
-        res.json({ token });
+        const accessToken = generateAccessToken({
+            id: user.id,
+            username: user.username,
+        });
+        const { refreshToken, expire_at } = generateRefreshToken({
+            id: user.id,
+            username: user.username,
+        });
+        const existToken = yield prisma.refreshToken.count({
+            where: {
+                userId: user.id,
+            },
+        });
+        if (existToken > 2) {
+            const toDelete = yield prisma.refreshToken.findFirst({
+                where: {
+                    userId: user.id,
+                },
+                orderBy: {
+                    expires_at: "asc",
+                },
+            });
+            yield prisma.refreshToken.delete({
+                where: {
+                    id: toDelete === null || toDelete === void 0 ? void 0 : toDelete.id,
+                },
+            });
+        }
+        yield prisma.refreshToken.create({
+            data: {
+                userId: user.id,
+                token: refreshToken,
+                expires_at: expire_at,
+            },
+        });
+        res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: true });
+        res.json({ accessToken });
     }
     else {
         res.status(401).json({ message: "Invalid credentials!" });
     }
 });
 exports.login = login;
+const refresh = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) {
+        res.status(401).json({ message: "Unauthorized!" });
+        return;
+    }
+    const decoded = (0, jsonwebtoken_1.decode)(refreshToken);
+    console.log(decoded);
+    res.json("Voila");
+});
+exports.refresh = refresh;

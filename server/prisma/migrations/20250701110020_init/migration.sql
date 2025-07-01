@@ -11,6 +11,16 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "RefreshToken" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "userId" INTEGER NOT NULL,
+    "token" TEXT NOT NULL,
+    "expires_at" DATETIME NOT NULL,
+    "used" BOOLEAN NOT NULL DEFAULT false,
+    CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Post" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "title" TEXT NOT NULL,

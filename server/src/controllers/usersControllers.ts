@@ -3,7 +3,18 @@ import { PrismaClient } from "../../generated/prisma";
 import * as z from "zod/v4";
 import { genSalt, hash } from "bcrypt";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient().$extends({
+  result: {
+    refreshToken: {
+      is_valid: {
+        needs: { expires_at: true },
+        compute(refreshToken) {
+          return true;
+        },
+      },
+    },
+  },
+});
 
 const saltRounds = 10;
 
